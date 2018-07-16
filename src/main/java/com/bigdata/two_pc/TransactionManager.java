@@ -12,6 +12,9 @@ public class TransactionManager {
         this.coordinator = coordinator;
     }
 
+    /**
+     * 事务管理器的执行SQL只是将SQL缓存
+     */
     public void execute(String sql) {
         sqls.add(sql);
     }
@@ -22,7 +25,8 @@ public class TransactionManager {
             sb.append(sql).append(";");
         }
         String sql = sb.toString();
-        String key = SHA1Utils.hash(sql);
+        // SQL拼接与时间戳做hash 防止hash相同
+        String key = SHA1Utils.hash(sql + System.currentTimeMillis());
         coordinator.execute(key, sql);
         sqls.clear();
 

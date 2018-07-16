@@ -24,8 +24,9 @@ public class Message implements Serializable{
         this.msg = TransactionMsg.getTransactionMsg(msg);
     }
 
-    public Message(LocalNode sendNode, TransactionMsg msg) {
+    public Message(LocalNode sendNode, String key, TransactionMsg msg) {
         this.sendNode = sendNode;
+        this.key = key;
         this.msg = msg;
     }
 

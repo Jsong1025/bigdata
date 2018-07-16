@@ -3,8 +3,6 @@ package com.bigdata.two_pc;
 import org.apache.xmlrpc.WebServer;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;

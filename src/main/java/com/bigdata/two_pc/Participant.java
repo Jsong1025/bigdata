@@ -4,7 +4,6 @@ import org.apache.xmlrpc.XmlRpcClient;
 import org.apache.xmlrpc.XmlRpcException;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -16,6 +15,9 @@ public class Participant extends LocalNode {
         super(address, port);
     }
 
+    /**
+     * 构造各个Participant节点的确认线程
+     */
     public FutureTask<Message> sendVoting(final Message message, final CountDownLatch latch) {
         final String url = "http://" + super.getAddress() +":"+ super.getPort();
 
@@ -37,6 +39,9 @@ public class Participant extends LocalNode {
         };
     }
 
+    /**
+     * 构造各个Participant节点的提交线程
+     */
     public FutureTask<Message> sendCommit(final Message message, final CountDownLatch latch) {
         final String url = "http://" + super.getAddress() +":"+ super.getPort();
 
@@ -58,36 +63,59 @@ public class Participant extends LocalNode {
         };
     }
 
-    public Message voting(Message message) throws Exception{
-        Transaction transaction = getTransaction(message.getKey());
-        while (transaction.getStatus().compareTo(TransactionStatus.INIT) == 0) {
-            try {
-                Thread.sleep(500l);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+    /**
+     * Participant节点 确认动作
+     */
+    public Message voting(Message message) {
+        try {
+            Transaction transaction = getTransaction(message.getKey());
+            while (transaction.getStatus().compareTo(TransactionStatus.INIT) != 0) {
+                try {
+                    Thread.sleep(500l);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (message.getMsg() == TransactionMsg.VOTE_REQUEST) {
+                // do something
+                System.out.println("Participant : " + getAddress() + ":" + getPort() + " : voting");
+                transaction.setStatus(TransactionStatus.READY);
+                return new Message(this, message.getKey(), TransactionMsg.GLOBAL_COMMIT);
+            }
+            else {
+                return new Message(this, message.getKey(), TransactionMsg.VOTE_ABORT);
             }
         }
-        if (message.getMsg() == TransactionMsg.VOTE_REQUEST) {
-            // do something
-            System.out.println("Participant : " + getAddress() + ":" + getPort() + " : voting");
-            transaction.setStatus(TransactionStatus.READY);
-            return new Message(this, TransactionMsg.GLOBAL_COMMIT);
+        catch (Exception e) {
+            return new Message(this, message.getKey(), TransactionMsg.VOTE_ABORT);
         }
-        return new Message(this, TransactionMsg.VOTE_ABORT);
     }
 
-    public Message commit(Message message) throws Exception{
-        Transaction transaction = getTransaction(message.getKey());
-        if (message.getMsg() == TransactionMsg.GLOBAL_COMMIT) {
-            // do something
-            System.out.println("Participant : " + getAddress() + ":" + getPort() + " : commit");
-            transaction.setStatus(TransactionStatus.COMMIT);
-            return new Message(this, TransactionMsg.GLOBAL_COMMIT);
+    /**
+     * Participant节点 提交动作
+     */
+    public Message commit(Message message) {
+        try {
+            Transaction transaction = getTransaction(message.getKey());
+            if (message.getMsg() == TransactionMsg.GLOBAL_COMMIT) {
+                // do something
+                System.out.println("Participant : " + getAddress() + ":" + getPort() + " : commit");
+                transaction.setStatus(TransactionStatus.COMMIT);
+                return new Message(this, message.getKey(), TransactionMsg.GLOBAL_COMMIT);
+            } else {
+                transaction.setStatus(TransactionStatus.ABORT);
+                return new Message(this, message.getKey(), TransactionMsg.GLOBAL_ABORT);
+            }
         }
-        transaction.setStatus(TransactionStatus.ABORT);
-        return new Message(this, TransactionMsg.GLOBAL_ABORT);
+        catch (Exception e) {
+//            transaction.setStatus(TransactionStatus.ABORT);
+            return new Message(this, message.getKey(), TransactionMsg.GLOBAL_ABORT);
+        }
     }
 
+    /**
+     * Participant节点 SQL执行
+     */
     @Override
     public boolean execute(String key, String sqls) {
         Transaction transaction = new Transaction(key, TransactionStatus.INIT);
@@ -96,6 +124,9 @@ public class Participant extends LocalNode {
         return true;
     }
 
+    /**
+     * 构造Participant节点SQL执行的线程
+     */
     public Runnable sendExecute(final String key, final String sqls, final CountDownLatch latch) {
         final String url = "http://" + super.getAddress() +":"+ super.getPort();
 
@@ -108,15 +139,17 @@ public class Participant extends LocalNode {
                     param.addElement(key);
                     param.addElement(sqls);
                     client.execute("node.execute", param);
-                    latch.countDown();
                 } catch (XmlRpcException | IOException e) {
                     e.printStackTrace();
+                }
+                finally {
+                    latch.countDown();
                 }
             }
         };
     }
 
-        @Override
+    @Override
     public void start() {
         super.bind(this);
         super.start();

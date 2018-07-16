@@ -2,7 +2,6 @@ package com.bigdata.two_pc;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.*;
 
 public class Coordinator extends LocalNode {
@@ -18,9 +17,12 @@ public class Coordinator extends LocalNode {
     }
 
 
-    public Message voting(Message message) throws Exception{
+    /**
+     * Coordinator节点确认动作
+     */
+    public Message voting(Message message) throws Exception {
         Transaction transaction = getTransaction(message.getKey());
-        while (transaction.getStatus().compareTo(TransactionStatus.INIT) == 0) {
+        while (transaction.getStatus().compareTo(TransactionStatus.INIT) != 0) {
             try {
                 Thread.sleep(500l);
             } catch (InterruptedException e) {
@@ -35,12 +37,11 @@ public class Coordinator extends LocalNode {
         CountDownLatch latch = new CountDownLatch(participants.size());
 
         List<Message> resultMessage = new ArrayList<>();
-        for (Participant participant: participants) {
+        for (Participant participant : participants) {
             FutureTask task = participant.sendVoting(message, latch);
             executor.execute(task);
             tasks.add(task);
         }
-
 
 
         for (FutureTask<Message> task : tasks) {
@@ -49,30 +50,35 @@ public class Coordinator extends LocalNode {
                 resultMessage.add(msg);
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
+                resultMessage.add(new Message(null, message.getKey(), TransactionMsg.VOTE_ABORT));
             }
         }
 
         try {
             transaction.setStatus(TransactionStatus.WAIT);
             latch.await();
+            return getTransaction(message.getKey(), resultMessage);
         } catch (InterruptedException e) {
             e.printStackTrace();
+            return new Message(this, message.getKey(), TransactionMsg.GLOBAL_ABORT);
         }
-        return getTransaction(resultMessage);
     }
 
-    private Message getTransaction(List<Message> resultMessage) {
+    private Message getTransaction(String key, List<Message> resultMessage) {
         TransactionMsg msg = TransactionMsg.GLOBAL_ABORT;
-        for (Message tran: resultMessage) {
+        for (Message tran : resultMessage) {
             if (tran.getMsg() == TransactionMsg.VOTE_ABORT) {
-                return new Message(this, msg);
+                return new Message(this, key, msg);
             }
         }
 
-        return new Message(this, TransactionMsg.GLOBAL_COMMIT);
+        return new Message(this, key, TransactionMsg.GLOBAL_COMMIT);
     }
 
-    public Message commit(Message message) throws Exception{
+    /**
+     * Coordinator节点 提交动作
+     */
+    public Message commit(Message message) throws Exception {
         System.out.println("Coordinator : " + getAddress() + ":" + getPort() + " : start voting");
         message = voting(message);
         System.out.println("Coordinator : " + getAddress() + ":" + getPort() + " : voting end");
@@ -80,7 +86,7 @@ public class Coordinator extends LocalNode {
         System.out.println("Coordinator : " + getAddress() + ":" + getPort() + " : start commit");
         List<FutureTask<Message>> tasks = new ArrayList<>();
         CountDownLatch latch = new CountDownLatch(participants.size());
-        for (Participant participant: participants) {
+        for (Participant participant : participants) {
             FutureTask task = participant.sendCommit(message, latch);
             executor.execute(task);
             tasks.add(task);
@@ -110,14 +116,20 @@ public class Coordinator extends LocalNode {
         return message;
     }
 
+    /**
+     * 开启事务接口，返回一个事务管理器
+     */
     public TransactionManager startTransaction() {
         return new TransactionManager(this);
     }
 
+    /**
+     * 执行SQL
+     */
     @Override
     public boolean execute(String key, String sqls) {
         if (key == null) {
-            key = SHA1Utils.hash(sqls);
+            return false;
         }
 
         System.out.println("Coordinator : " + getAddress() + ":" + getPort() + " : execute " + sqls);
@@ -127,16 +139,17 @@ public class Coordinator extends LocalNode {
 
         CountDownLatch latch = new CountDownLatch(participants.size());
 
-        for (Participant participant: participants) {
+        for (Participant participant : participants) {
             executor.submit(participant.sendExecute(key, sqls, latch));
         }
 
         try {
             latch.await();
+            return true;
         } catch (InterruptedException e) {
             e.printStackTrace();
+            return false;
         }
-        return true;
     }
 
     public static void main(String[] args) throws Exception {

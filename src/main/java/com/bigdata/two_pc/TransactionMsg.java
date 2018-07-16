@@ -1,5 +1,6 @@
 package com.bigdata.two_pc;
 
+// 事务状态
 public enum TransactionMsg {
 
     VOTE_REQUEST("VOTE_REQUEST"),
