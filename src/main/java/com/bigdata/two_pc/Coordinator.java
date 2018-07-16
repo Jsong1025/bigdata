@@ -119,6 +119,7 @@ public class Coordinator extends LocalNode {
         if (key == null) {
             key = SHA1Utils.hash(sqls);
         }
+
         System.out.println("Coordinator : " + getAddress() + ":" + getPort() + " : execute " + sqls);
 
         Transaction transaction = new Transaction(key, TransactionStatus.INIT);
