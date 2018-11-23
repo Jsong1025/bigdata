@@ -261,7 +261,7 @@ public class RemoteNode {
     // the local node must deal with (succ, pred, fingers...) will be a
     // RemoteNode, which will have actual functions defined for it which
     // translate the function into a message which is sent across the
-    // network, to be recieved by a Node and processed through some mechanism.
+    // network, to be recieved by a PaxosNode and processed through some mechanism.
     // perhaps through a message parser which pulls apart the message and
     // performs the corresponding action.
 }

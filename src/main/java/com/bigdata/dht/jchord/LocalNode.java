@@ -134,7 +134,7 @@ public class LocalNode {
         cb.LogEx(s);
     }
 
-    // Node information
+    // PaxosNode information
 
     public RemoteNode getSuccessor() {
         return fingerTable.getFinger(1);
